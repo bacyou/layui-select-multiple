@@ -12,7 +12,6 @@ layui.define('layer', function(exports){
         ,layer = layui.layer
         ,hint = layui.hint()
         ,device = layui.device()
-        ,valueStr = []
 
         ,MOD_NAME = 'form', ELEM = '.layui-form', THIS = 'layui-this', SHOW = 'layui-show', HIDE = 'layui-hide', DISABLED = 'layui-disabled'
 
@@ -36,7 +35,7 @@ layui.define('layer', function(exports){
                     ,'链接格式不正确'
                 ]
                 ,number: function(value){
-                    if(!value || isNaN(value)) return '只能填写数字'
+                    if(!value || isNaN(value)) return '只能填写数字';
                 }
                 ,date: [
                     /^(\d{4})[\u4e00-\u9fa5]|[-\/](\d{1}|0\d{1}|1[0-2])([\u4e00-\u9fa5]|[-\/](\d{1}|0\d{1}|[1-2][0-9]|3[0-1]))*$/
@@ -75,7 +74,7 @@ layui.define('layer', function(exports){
             if (this[i] == val) return i;
         }
         return -1;
-    }
+    };
 
     //得到元素的索引
     Array.prototype.removeElem = function(val) {
@@ -93,7 +92,7 @@ layui.define('layer', function(exports){
         }else{
             title.children("input.layui-input").attr("placeholder",select.find("option:eq(0)").text());
         }
-    }
+    };
 
     //表单控件渲染
     Form.prototype.render = function(type, filter){
@@ -160,7 +159,7 @@ layui.define('layer', function(exports){
                             dl.find(".layui-input").val("");
                             setTimeout(function () {  // 直接写focus，会失败。。
                                 dl.find(".layui-input").focus();
-                            },500)
+                            },500);
                         }else{
                             reElem.hasClass(CLASS + 'ed') ? (
                                 hideDown()
@@ -273,33 +272,48 @@ layui.define('layer', function(exports){
 
                     //选择
                     var omit = typeof select.attr("lay-omit") === 'undefined'; // 简写为 已选择x条
+                    var omitNum = !omit ? (Number(select.attr("lay-omit")) === NaN ? 0 : Number(select.attr("lay-omit"))) : 0; // 简写时机判断
                     dds.on('click', function(event){
                         var othis = $(this), value = othis.attr('lay-value'),valueStr = select.val() || [];
                         var filter = select.attr('lay-filter'); //获取过滤器
                         if(typeof select.attr('multiple') && typeof select.attr('multiple') === 'string'){
                             if(othis.hasClass(DISABLED)) return false;
-                            if(othis.find("input[type='checkbox']").is(':checked')){
-                                if (omit) {
+                            // 判断当前是否选中
+                            if(othis.find("input[type='checkbox']").is(':checked')){ 
+                                if (omit && valueStr.length <= omitNum) {
                                     multiSelect.html(multiSelect.html() + "<a href='javascript:;'><span>"+othis.find("span").text()+"</span><i></i></a>");
                                 } else {
+                                	// 清除所有项目
+                                	multiSelect.find("a").each(function(){
+                                        $(this).remove();
+                                    });
                                     input.eq(0).val("已选择"+othis.parent().find('[type=checkbox]:checked').length+"条");
                                 }
                                 valueStr.push(value);
                             }else{
-                                if (omit) {
+                                if (omit || valueStr.length < omitNum) {
                                     multiSelect.find("a").each(function(){
                                         if($(this).find("span").text() == othis.find("span").text()){
                                             $(this).remove();
                                             valueStr.removeElem(value);
                                         }
-                                    })
+                                    });
                                 } else {
-                                    var num =othis.parent().find('[type=checkbox]:checked').length;
-                                    if (num == 0) {
-                                        input.eq(0).val("");
-                                    } else {
-                                        input.eq(0).val("已选择"+num+"条");
-                                    }
+                                	if(valueStr.length == omitNum + 1){
+                                		input.eq(0).val("");
+                                		multiSelect.html("");
+                                		othis.parent().find('[type=checkbox]:checked').each(function(){
+                                			multiSelect.html(multiSelect.html() + "<a href='javascript:;'><span>"+$(this).attr("title")+"</span><i></i></a>");
+                                		});
+                                		multiSelect.html(multiSelect.html() + '<i class="layui-edge"></i>'); 
+                                	}else{
+                                		var num =othis.parent().find('[type=checkbox]:checked').length;
+                                		if (num == 0) {
+                                			input.eq(0).val("");
+                                		} else {
+                                			input.eq(0).val("已选择"+num+"条");
+                                		}
+                                	}
                                     valueStr.removeElem(value);
                                 }
 
@@ -337,19 +351,22 @@ layui.define('layer', function(exports){
                         if(typeof select.attr('multiple') && typeof select.attr('multiple') === 'string') {
                             e.stopPropagation(); // 阻止事件冒泡，使下拉框长显示
                         }
-                    })
-                }
-
+                    });
+                };
+                
+                // 初始化设置
                 selects.each(function(index, select){
                     var othis = $(this)
                         ,hasRender = othis.next('.'+CLASS)
                         ,disabled = this.disabled
+                        ,value = null
                         ,selected = $(select.options[select.selectedIndex]) //获取当前选中项
+                        ,omit = othis.attr("lay-omit")
                         ,optionsFirst = select.options[0];
                     if(typeof othis.attr('multiple') && typeof othis.attr('multiple') === 'string'){
-                        var value = $(select).val()
+                    	value = othis.val();
                     }else{
-                        var value = select.value
+                    	value = select.value;
                     }
                     var isSearchInput = typeof othis.attr('lay-search') != 'undefined';
 
@@ -360,29 +377,32 @@ layui.define('layer', function(exports){
                         ,placeholder = optionsFirst ? (
                         optionsFirst.value ? TIPS : (optionsFirst.innerHTML || TIPS)
                     ) : TIPS;
-
-                    //替代元素
-                    var inputValue =  !(typeof $(select).attr("lay-omit") === 'undefined')&&value!=null&&value.length>0 ? '已选择'+value.length+"条" : "";
+                    
+                    // 替代元素
+                    var inputValue = !(typeof omit === 'undefined') && value!=null && value.length > omit ? '已选择' + value.length + "条" : "";
                     if(typeof othis.attr('multiple') && typeof othis.attr('multiple') === 'string') {
                         var reElem = $(['<div class="' + (isMultiple ? '' : 'layui-unselect ') + CLASS + (disabled ? ' layui-select-disabled' : '') + '">'
-                            , '<div class="' + TITLE + '"><input type="text" class="layui-input" value="'+inputValue+'" placeholder="' + placeholder + '"><div class="layui-input multiSelect" >' + function(){
+                            , '<div class="' + TITLE + '"><input type="text" class="layui-input" value="' + inputValue + '" placeholder="' + placeholder + '">' +
+                            '<div class="layui-input multiSelect" >' 
+                            + function(){
                                 var aLists = [];
-                                if(typeof $(select).attr("lay-omit")==='undefined' && value != null && value != undefined && value.length != 0){
-                                    for(var aList = 0;aList<value.length;aList++){
-                                        if(value[aList]){
+                                if((typeof omit ==='undefined' && value != null && value != undefined && value.length > 0) || 
+                                		(!(typeof omit ==='undefined') && value != null && value != undefined && value.length <= omit && value.length > 0)){
+                                    for(var valueIndex = 0; valueIndex < value.length; valueIndex++){
+                                        if(value[valueIndex]){
                                             var chooseText = '';
-                                            $(select).find('option').each(function (i, ele) {
+                                            othis.find('option').each(function (i, ele) {
                                                if (typeof $(this).attr('value') == 'undefined') {
-                                                    if ($(this).text() == value[aList]) {
+                                                    if ($(this).text() == value[valueIndex]) {
                                                         chooseText = $(this).text();
                                                         return false;
                                                     }
-                                               } else if ($(this).attr('value') == value[aList]) {
+                                               } else if ($(this).attr('value') == value[valueIndex]) {
                                                    chooseText = $(this).text();
                                                    return false;
                                                }
                                             });
-                                            aLists.push("<a href='javascript:;'><span>"+chooseText+"</span><i></i></a>")
+                                            aLists.push("<a href='javascript:;'><span>"+chooseText+"</span><i></i></a>");
                                         }
                                     }
                                 }
@@ -399,7 +419,7 @@ layui.define('layer', function(exports){
                                         }
                                     }else {
                                         if (index ===1 && isSearchInput) {
-                                            arr.push('<div  style="max-height: 247px; overflow-y: auto" >')
+                                            arr.push('<div  style="max-height: 247px; overflow-y: auto" >');
                                         }
                                         if(value != null && value != undefined && value.length != 0) {
                                             for (var checkedVal = 0; checkedVal < value.length; checkedVal++) {
@@ -481,7 +501,7 @@ layui.define('layer', function(exports){
                             ,othis: reElem
                         });
                     });
-                }
+                };
 
                 checks.each(function(index, check){
                     var othis = $(this), skin = othis.attr('lay-skin')
